@@ -38,7 +38,7 @@ func (group *Group) notify(key string, value string)  {
 	}
 }
 
-func (env Env) WriteInDB() {
+func (env *Env) WriteInDB() {
 	db := resource.GetDB(postgres)
 	var columnList []string
 	var valueList [][]string

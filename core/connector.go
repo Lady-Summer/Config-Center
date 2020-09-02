@@ -104,9 +104,6 @@ func createEnvMap() map[string]*Env {
 	return result
 }
 
-func (service *Service) getGroupFromClient(req []byte) (*Group, error) {
-}
-
 func (service *Service) addNewSession(conn *net.TCPConn) error {
 	reader := bufio.NewReader(conn)
 	n, _ := conn.ReadFrom(reader)
@@ -119,7 +116,7 @@ func (service *Service) addNewSession(conn *net.TCPConn) error {
 		log.Println("Error when read from connection: ", err)
 		return err
 	}
-	group, e := service.getGroupFromClient(buffer)
+	env, e := service.getContentFromRequest(buffer)
 	if e != nil {
 		return e
 	}
@@ -127,7 +124,41 @@ func (service *Service) addNewSession(conn *net.TCPConn) error {
 		conn: conn,
 		buf:  make(map[string]string),
 	}
-	group.sessions = append(group.sessions, session)
-
+	for key := range env.groupMap {
+		group := env.groupMap[key]
+		group.sessions = append(group.sessions, session)
+	}
+	if service.envMap[env.Name] != nil {
+		return nil
+	}
+	service.envMap[env.Name] = env
+	go env.WriteInDB()
 	return nil
+}
+
+type requestContent struct {
+	envName string
+	groupName string
+	keyNames []string
+}
+
+func (service *Service) getContentFromRequest(buffer []byte) (*Env, error) {
+	content := new(requestContent)
+	err := json.Unmarshal(buffer, content)
+	// TODO clarify the logic here: check first then add
+	if service.envMap[content.envName] != nil {
+		env := service.envMap[content.envName]
+		if env.groupMap[content.groupName] != nil {
+			return env, err
+		}
+	}
+	env := &Env{
+		Name: content.envName,
+		groupMap: map[string]*Group{
+			content.groupName: {
+				Name: content.groupName,
+			},
+		},
+	}
+	return env, err
 }
